@@ -39,7 +39,14 @@ old = "        } ?? .home\n"
 new = "        } ?? .installed\n"
 assert old in s, "detail fallback not found"
 cv.write_text(s.replace(old, new, 1))
-print("home tab hidden")
+
+ap = Path("ThreeOneOSFive/App.swift")
+s = ap.read_text()
+old = "    @State private var showOnboarding = OnboardingStore.shouldShow()\n"
+new = "    @State private var showOnboarding = false\n"
+assert old in s, "onboarding gate not found"
+ap.write_text(s.replace(old, new, 1))
+print("home tab hidden; onboarding skipped")
 PY
 
 BUILD_ROOT="$SRC/.build"

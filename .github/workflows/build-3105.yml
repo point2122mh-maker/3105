@@ -6,6 +6,9 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: macos-15
@@ -27,3 +30,13 @@ jobs:
           path: |
             3105-unsigned.ipa
           if-no-files-found: error
+
+      - name: Publish release with direct IPA download
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="ipa-$(date -u +%Y%m%d%H%M%S)"
+          gh release create "$TAG" 3105-unsigned.ipa \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "3105 unsigned IPA ($TAG)" \
+            --notes "Unofficial build from source. Unsigned IPA - requires enterprise certificate signing."

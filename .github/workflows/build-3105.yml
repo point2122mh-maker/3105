@@ -72,7 +72,7 @@ jobs:
           from pathlib import Path
           p = Path("ThreeOneOSFive/ContentView.swift")
           s = p.read_text()
-          old = "        fileURLs = (try? FileManager.default.contentsOfDirectory(\n            at: folderURL,\n            includingPropertiesForKeys: nil,\n            options: [.skipsHiddenFiles]\n        )) ?? []\n"
+          old = "        fileURLs = (try? FileManager.default.contentsOfDirectory(\n            at: folderURL,\n            includingPropertiesForKeys: nil,\n            options: [.skipsHiddenFiles]\n)) ?? []\n"
           new = "        var found: [URL] = []\n        let bundleDir = Bundle.main.bundleURL\n            .appendingPathComponent(\"Injected\", isDirectory: true)\n            .appendingPathComponent(title, isDirectory: true)\n        if let bundled = try? FileManager.default.contentsOfDirectory(\n            at: bundleDir,\n            includingPropertiesForKeys: nil,\n            options: [.skipsHiddenFiles]\n        ) { found.append(contentsOf: bundled) }\n        if let local = try? FileManager.default.contentsOfDirectory(\n            at: folderURL,\n            includingPropertiesForKeys: nil,\n            options: [.skipsHiddenFiles]\n        ) { found.append(contentsOf: local) }\n        fileURLs = found\n"
           assert old in s, "category reload pattern not found"
           p.write_text(s.replace(old, new, 1))

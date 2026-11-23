@@ -46,7 +46,59 @@ old = "    @State private var showOnboarding = OnboardingStore.shouldShow()\n"
 new = "    @State private var showOnboarding = false\n"
 assert old in s, "onboarding gate not found"
 ap.write_text(s.replace(old, new, 1))
-print("home tab hidden; onboarding skipped")
+
+# Rename Installed -> AIM and add HOLOGRAM / SKIN / MISC tabs.
+ui = Path("ThreeOneOSFive/helpers/AppTabNavigationState.swift")
+s = ui.read_text()
+old = "    case search\n\n    var id: Int { rawValue }"
+new = "    case search\n    case hologram\n    case skin\n    case misc\n\n    var id: Int { rawValue }"
+assert old in s, "AppSection cases not found"
+s = s.replace(old, new, 1)
+old = "        case .installed:\n            return true\n"
+new = "        case .installed, .hologram, .skin, .misc:\n            return true\n"
+assert old in s, "visibility installed case not found"
+s = s.replace(old, new, 1)
+ui.write_text(s)
+
+cv = Path("ThreeOneOSFive/ContentView.swift")
+s = cv.read_text()
+old = '        case .installed: return "tab.installed"\n'
+new = '        case .installed: return "AIM"\n        case .hologram: return "HOLOGRAM"\n        case .skin: return "SKIN"\n        case .misc: return "MISC"\n'
+assert old in s, "titleKey installed not found"
+s = s.replace(old, new, 1)
+old = '        case .installed: return "tray.full.fill"\n'
+new = '        case .installed: return "tray.full.fill"\n        case .hologram: return "cube.transparent.fill"\n        case .skin: return "paintbrush.fill"\n        case .misc: return "square.grid.2x2.fill"\n'
+assert old in s, "systemImage installed not found"
+s = s.replace(old, new, 1)
+old = "        case .installed:\n            PatchProjectsView(\n                onOpenSettings: openSettings,\n                onOpenLogs: openLogs\n            )\n"
+new = old + "        case .hologram:\n            AimCategoryView(title: \"HOLOGRAM\")\n        case .skin:\n            AimCategoryView(title: \"SKIN\")\n        case .misc:\n            AimCategoryView(title: \"MISC\")\n"
+assert old in s, "sectionContent installed not found"
+s = s.replace(old, new, 1)
+s += """
+private struct AimCategoryView: View {
+    let title: String
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 12) {
+                Image(systemName: "square.grid.2x2.fill")
+                    .font(.system(size: 34, weight: .light))
+                    .foregroundStyle(AppTheme.accent)
+                Text(title)
+                    .font(.headline)
+                Text("No items")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(uiColor: .systemGroupedBackground))
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+}
+"""
+cv.write_text(s)
+print("AIM tabs added; onboarding skipped")
 PY
 
 BUILD_ROOT="$SRC/.build"

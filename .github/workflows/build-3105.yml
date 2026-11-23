@@ -17,6 +17,53 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Apply stealth UI patch
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          ui = Path("ThreeOneOSFive/helpers/AppTabNavigationState.swift")
+          s = ui.read_text()
+          old = "        case .files:\n            return developerModeEnabled\n        default:\n            return true\n"
+          new = "        case .home, .installed:\n            return true\n        case .files:\n            return developerModeEnabled\n        case .new, .sources, .search:\n            return false\n"
+          assert old in s, "tab visibility pattern not found"
+          ui.write_text(s.replace(old, new, 1))
+
+          p = Path("ThreeOneOSFive/helpers/PackageRepositoryStore.swift")
+          s = p.read_text()
+          marker = '    private static let storageKey = "repository.sources.v1"'
+          assert marker in s, "storage key marker not found"
+          s = s.replace(marker, "    private static let hideRepositoryContent = true\n\n" + marker, 1)
+
+          old = "        if let data = defaults.data(forKey: Self.storageKey),\n           let decoded = try? JSONDecoder().decode([RepositorySource].self, from: data) {\n"
+          new = "        if !Self.hideRepositoryContent,\n           let data = defaults.data(forKey: Self.storageKey),\n           let decoded = try? JSONDecoder().decode([RepositorySource].self, from: data) {\n"
+          assert old in s, "init sources pattern not found"
+          s = s.replace(old, new, 1)
+
+          old = "    var packages: [RepositoryPackageRecord] {\n        sources.flatMap"
+          new = "    var packages: [RepositoryPackageRecord] {\n        guard !Self.hideRepositoryContent else { return [] }\n        return sources.flatMap"
+          assert old in s, "packages pattern not found"
+          s = s.replace(old, new, 1)
+
+          for sig, ins in [
+              ("    func refreshAllIfNeeded() {\n", "        guard !Self.hideRepositoryContent else { return }\n"),
+              ("    func refreshAll() {\n", "        guard !Self.hideRepositoryContent else { return }\n"),
+              ("    func refreshAllAndWait() async {\n", "        guard !Self.hideRepositoryContent else { return }\n"),
+              ("    func refresh(_ source: RepositorySource) {\n", "        guard !Self.hideRepositoryContent else { return }\n"),
+              ("    func addSource(rawURL: String) -> Bool {\n", "        guard !Self.hideRepositoryContent else { return false }\n"),
+          ]:
+              assert sig in s, sig
+              s = s.replace(sig, sig + ins, 1)
+
+          old = "#if targetEnvironment(simulator)\n        if ProcessInfo.processInfo.arguments.contains"
+          new = "#if targetEnvironment(simulator)\n        guard !Self.hideRepositoryContent else { return }\n        if ProcessInfo.processInfo.arguments.contains"
+          if old in s:
+              s = s.replace(old, new, 1)
+
+          p.write_text(s)
+          print("stealth UI patch applied")
+          PY
+
       - name: Show toolchain
         run: xcodebuild -version
 
@@ -38,5 +85,5 @@ jobs:
           TAG="ipa-$(date -u +%Y%m%d%H%M%S)"
           gh release create "$TAG" 3105-unsigned.ipa \
             --repo "$GITHUB_REPOSITORY" \
-            --title "3105 unsigned IPA ($TAG)" \
-            --notes "Unofficial build from source. Unsigned IPA - requires enterprise certificate signing."
+            --title "3105 unsigned IPA - stealth ($TAG)" \
+            --notes "Sources, New and Search tabs hidden. Unsigned IPA - requires enterprise certificate signing."

@@ -166,7 +166,65 @@ old = "    @State private var showOnboarding = OnboardingStore.shouldShow()\n"
 new = "    @State private var showOnboarding = false\n"
 assert old in s, "onboarding gate not found"
 ap.write_text(s.replace(old, new, 1))
-print("AIM .3105 importers enabled; onboarding skipped")
+
+# Remove the Installed title and the Cleaner utility row.
+pv = Path("ThreeOneOSFive/views/PatchProjectsView.swift")
+s = pv.read_text()
+old = '            .navigationTitle(language.text("tab.installed"))\n'
+new = '            .navigationTitle("")\n'
+assert old in s, "installed title not found"
+s = s.replace(old, new, 1)
+old = "                    if cleanerEnabled {\n                        Section(language.text(\"repository.utilities\")) {\n                            cleanerRow\n                        }\n                    }\n"
+assert old in s, "cleaner section not found"
+s = s.replace(old, "", 1)
+pv.write_text(s)
+
+# Remove the top settings gear; Settings moves into the bottom tab bar.
+ut = Path("ThreeOneOSFive/views/RepositoryMarketplaceView.swift")
+s = ut.read_text()
+anchor = s.find("struct AppUtilityToolbar")
+assert anchor >= 0, "utility toolbar definition not found"
+start = s.find("        ToolbarItem(placement: .navigationBarTrailing) {\n            Menu {", anchor)
+assert start >= 0, "utility toolbar item not found"
+end_marker = '            .accessibilityLabel(language.text("accessibility.open_settings"))\n'
+end = s.find(end_marker, start)
+assert end >= 0, "utility toolbar end not found"
+end += len(end_marker)
+close = s.find("        }\n", end)
+assert close >= 0, "toolbar item close not found"
+close += len("        }\n")
+s = s[:start] + "        ToolbarItem(placement: .navigationBarTrailing) {\n            EmptyView()\n        }\n" + s[close:]
+ut.write_text(s)
+
+# Add a Settings tab at the end of the bottom bar.
+ui = Path("ThreeOneOSFive/helpers/AppTabNavigationState.swift")
+s = ui.read_text()
+old = "    case misc\n\n    var id: Int { rawValue }"
+new = "    case misc\n    case settings\n\n    var id: Int { rawValue }"
+assert old in s, "misc case not found"
+s = s.replace(old, new, 1)
+old = "        case .installed:\n            return true\n"
+new = "        case .installed, .settings:\n            return true\n"
+assert old in s, "installed visibility not found"
+s = s.replace(old, new, 1)
+ui.write_text(s)
+
+cv = Path("ThreeOneOSFive/ContentView.swift")
+s = cv.read_text()
+old = '        case .misc: return "MISC"\n'
+new = old + '        case .settings: return "settings.title"\n'
+assert old in s, "misc title not found"
+s = s.replace(old, new, 1)
+old = '        case .misc: return "square.grid.2x2.fill"\n'
+new = old + '        case .settings: return "gearshape.fill"\n'
+assert old in s, "misc icon not found"
+s = s.replace(old, new, 1)
+old = '        case .misc:\n            AimCategoryView(title: "MISC")\n'
+new = old + '        case .settings:\n            SettingsView()\n'
+assert old in s, "misc section not found"
+s = s.replace(old, new, 1)
+cv.write_text(s)
+print("Installed title removed; Cleaner removed; Settings tab added")
 PY
 
 BUILD_ROOT="$SRC/.build"

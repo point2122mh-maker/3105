@@ -225,7 +225,7 @@ assert old in s, "misc section not found"
 s = s.replace(old, new, 1)
 cv.write_text(s)
 
-# Remove the + menu (New Patch / Import .3105 / Import .tendies) from AIM.
+# Remove the + menu from AIM.
 pv = Path("ThreeOneOSFive/views/PatchProjectsView.swift")
 s = pv.read_text()
 start = s.find("                ToolbarItem(placement: .navigationBarTrailing) {\n                    Menu {")
@@ -255,7 +255,7 @@ private struct AimCategoryView: View {
     private var folderURL: URL {
         let docs = FileManager.default.urls(
             for: .documentDirectory, in: .userDomainMask
-        )[0]
+)[0]
         return docs.appendingPathComponent(title, isDirectory: true)
     }
 
@@ -333,12 +333,12 @@ private struct AimCategoryView: View {
     private func reload() {
         try? FileManager.default.createDirectory(
             at: folderURL, withIntermediateDirectories: true
-        )
+)
         fileURLs = (try? FileManager.default.contentsOfDirectory(
             at: folderURL,
             includingPropertiesForKeys: nil,
             options: [.skipsHiddenFiles]
-        )) ?? []
+)) ?? []
     }
 
     private func importFile(_ url: URL) {
@@ -412,10 +412,8 @@ private final class AimFileServer: ObservableObject {
         defer { freeifaddrs(ifaddr) }
         var ptr = ifaddr
         while let p = ptr {
-            let flags = p.pointee.ifa_flags
             let addr = p.pointee.ifa_addr.pointee
-            if flags & (IFF_UP | IFF_RUNNING) == (IFF_UP | IFF_RUNNING),
-               addr.sa_family == AF_INET {
+            if addr.sa_family == AF_INET {
                 var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
                 if getnameinfo(p.pointee.ifa_addr, socklen_t(addr.sa_len),
                                &host, socklen_t(host.count), nil, 0,
@@ -440,7 +438,7 @@ private final class AimFileServer: ObservableObject {
                 if let end = Self.headerEnd(in: buffer) {
                     let header = String(
                         data: buffer.subdata(in: 0..<end), encoding: .utf8
-                    ) ?? ""
+) ?? ""
                     let lines = header.split(separator: "\r\n")
                     let request = lines.first.map(String.init) ?? ""
                     let parts = request.split(separator: " ")
@@ -455,7 +453,7 @@ private final class AimFileServer: ObservableObject {
                     let bodyStart = end + 4
                     if buffer.count >= bodyStart + length {
                         let body = buffer.subdata(in: bodyStart..<(bodyStart + length))
-                        process(method: method, target: target,
+                        self.process(method: method, target: target,
                                 body: body, connection: connection)
                         return
                     }
@@ -503,11 +501,11 @@ private final class AimFileServer: ObservableObject {
             if filename.isEmpty { filename = "upload.bin" }
             let docs = FileManager.default.urls(
                 for: .documentDirectory, in: .userDomainMask
-            )[0]
+)[0]
             let folder = docs.appendingPathComponent(category, isDirectory: true)
             try? FileManager.default.createDirectory(
                 at: folder, withIntermediateDirectories: true
-            )
+)
             do {
                 try body.write(to: folder.appendingPathComponent(filename),
                                options: .atomic)
@@ -528,7 +526,7 @@ private final class AimFileServer: ObservableObject {
     }
 }
 
-private struct AimFileServerSection: View {
+struct AimFileServerSection: View {
     @ObservedObject private var server = AimFileServer.shared
 
     var body: some View {

@@ -20,7 +20,7 @@ new = "        case .installed:\n            return true\n"
 assert old in s, "visible home pattern not found"
 s = s.replace(old, new, 1)
 old = "        case .new, .sources, .search:\n            return false\n"
-new = "        case .home, .new, .sources, .search:\n            return false\n"
+new = "        case .home, .new, .sources, .search, .hologram, .skin, .misc:\n            return false\n"
 assert old in s, "hidden sections pattern not found"
 s = s.replace(old, new, 1)
 old = "    case search\n\n    var id: Int { rawValue }"

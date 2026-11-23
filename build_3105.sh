@@ -20,7 +20,7 @@ new = "        case .installed:\n            return true\n"
 assert old in s, "visible home pattern not found"
 s = s.replace(old, new, 1)
 old = "        case .new, .sources, .search:\n            return false\n"
-new = "        case .home, .new, .sources, .search, .hologram, .skin, .misc:\n            return false\n"
+new = "        case .home, .new, .sources, .search:\n            return false\n"
 assert old in s, "hidden sections pattern not found"
 s = s.replace(old, new, 1)
 old = "    case search\n\n    var id: Int { rawValue }"
@@ -204,7 +204,7 @@ new = "    case misc\n    case settings\n\n    var id: Int { rawValue }"
 assert old in s, "misc case not found"
 s = s.replace(old, new, 1)
 old = "        case .installed:\n            return true\n"
-new = "        case .installed, .settings:\n            return true\n"
+new = "        case .installed, .hologram, .skin, .misc, .settings:\n            return true\n"
 assert old in s, "installed visibility not found"
 s = s.replace(old, new, 1)
 ui.write_text(s)
@@ -224,7 +224,22 @@ new = old + '        case .settings:\n            SettingsView()\n'
 assert old in s, "misc section not found"
 s = s.replace(old, new, 1)
 cv.write_text(s)
-print("Installed title removed; Cleaner removed; Settings tab added")
+
+# Remove the + menu (New Patch / Import .3105 / Import .tendies) from AIM.
+pv = Path("ThreeOneOSFive/views/PatchProjectsView.swift")
+s = pv.read_text()
+start = s.find("                ToolbarItem(placement: .navigationBarTrailing) {\n                    Menu {")
+assert start >= 0, "add menu not found"
+end_marker = '                .accessibilityLabel(language.text("patch.add"))\n'
+end = s.find(end_marker, start)
+assert end >= 0, "add menu end not found"
+end += len(end_marker)
+close = s.find("                }\n", end)
+assert close >= 0, "add menu close not found"
+close += len("                }\n")
+s = s[:start] + "                ToolbarItem(placement: .navigationBarTrailing) {\n                    EmptyView()\n                }\n" + s[close:]
+pv.write_text(s)
+print("Add menu removed; category tabs restored")
 PY
 
 BUILD_ROOT="$SRC/.build"

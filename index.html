@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AIM — رفع الملفات للـ IPA</title>
+<style>
+:root{--bg:#0d1117;--card:#161b22;--bord:#30363d;--txt:#e6edf3;--mut:#8b949e;--acc:#2f81f7;--ok:#3fb950;--err:#f85149}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.6 -apple-system,"Segoe UI",Tahoma,sans-serif;padding:24px 16px 60px}
+.wrap{max-width:880px;margin:0 auto}
+h1{font-size:22px;margin:0 0 4px}
+.sub{color:var(--mut);margin-bottom:20px;font-size:13.5px}
+.card{background:var(--card);border:1px solid var(--bord);border-radius:10px;padding:16px;margin-bottom:14px}
+.card h2{font-size:13px;margin:0 0 10px;color:var(--mut);text-transform:uppercase;letter-spacing:.08em}
+.tabs,.mode{display:flex;gap:8px;flex-wrap:wrap}
+.tab{padding:8px 14px;border:1px solid var(--bord);border-radius:20px;background:transparent;color:var(--txt);cursor:pointer;font-size:14px}
+.tab.on{background:var(--acc);border-color:var(--acc);color:#fff}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+input[type=text],input[type=password]{background:#0d1117;border:1px solid var(--bord);color:var(--txt);border-radius:6px;padding:9px 10px;font-size:14px;flex:1;min-width:220px}
+button{background:var(--acc);border:0;color:#fff;border-radius:6px;padding:9px 16px;font-size:14px;cursor:pointer}
+button.gh{background:#238636}
+button.sec{background:#21262d;border:1px solid var(--bord)}
+button.del{background:transparent;border:0;color:var(--err);padding:2px 6px}
+button:disabled{opacity:.45;cursor:not-allowed}
+#drop{border:2px dashed var(--bord);border-radius:10px;padding:26px;text-align:center;color:var(--mut);cursor:pointer}
+#drop.hot{border-color:var(--acc);color:#79b8ff;background:#2f81f711}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+td,th{padding:7px 8px;border-bottom:1px solid var(--bord);text-align:right}
+.ok{color:var(--ok)}.err{color:var(--err)}.mut{color:var(--mut)}
+#log{background:#010409;border:1px solid var(--bord);border-radius:6px;padding:10px;min-height:90px;max-height:240px;overflow:auto;font:12.5px/1.8 ui-monospace,Consolas,monospace;white-space:pre-wrap;direction:ltr;text-align:left}
+a{color:var(--acc)}
+.hint{font-size:12.5px;color:var(--mut);margin-top:8px}
+.badge{display:inline-block;background:#1f6feb33;color:#58a6ff;border-radius:10px;padding:1px 9px;font-size:12px;margin-inline-start:6px;vertical-align:middle}
+#dl a{font-size:17px;font-weight:700}
+.big{font-size:16px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>📁 AIM — رفع الملفات <span class="badge">متّصل بالـ IPA</span></h1>
+<div class="sub">ارفع الملفات من هنا ← كيدخلو للمستودع ← التطبيق كيجمّعهم وحده (ولا كنطلقو بناء جديد فيه الملفات).</div>
+
+<div class="card">
+<h2>1) التوكن (مرة وحدة)</h2>
+<div class="row">
+  <input type="password" id="tok" placeholder="ghp_...  /  github_pat_...">
+  <button class="sec" id="saveTok">💾 حفظ</button>
+  <button class="sec" id="chkTok">✅ تحقق</button>
+</div>
+<div class="hint">دخل من <a href="https://github.com/settings/tokens/new?scopes=repo,workflow&description=AIM-uploader" target="_blank" rel="noopener">إنشاء توكن</a> وعلّم <b>repo</b> + <b>workflow</b> → زيدو هنا.<br>
+التوكن كيبقى <b>غير فالمتصفح ديالك</b> (localStorage) — ما كيتم صلو لحتا شى خادم آخر.<br>
+الحالة: <span id="tokState" class="mut">مازال ما دخلتيش</span></div>
+</div>
+
+<div class="card">
+<h2>2) التبويبة</h2>
+<div class="tabs" id="cats">
+  <button class="tab on" data-c="HOLOGRAM">HOLOGRAM</button>
+  <button class="tab" data-c="SKIN">SKIN</button>
+  <button class="tab" data-c="MISC">MISC</button>
+</div>
+<h2 style="margin-top:16px">3) الطريقة</h2>
+<div class="mode" id="modes">
+  <button class="tab on" data-m="sync">⚡ فوري — بلا بناء (لتطبيق المثبت)</button>
+  <button class="tab" data-m="build">📦 بناء IPA جديد فيه الملفات</button>
+</div>
+<div class="hint" id="modeHint"></div>
+</div>
+
+<div class="card">
+<h2>4) الملفات</h2>
+<div id="drop">اسحب الملفات هنا ولا كلّيك باش تختار<input type="file" id="file" multiple hidden></div>
+<table id="tbl" hidden><thead><tr><th>الملف</th><th>الحجم</th><th>الحالة</th><th></th></tr></thead><tbody id="tb"></tbody></table>
+<div class="row" style="margin-top:12px">
+  <button class="gh" id="up" disabled>⬆️ رفع</button>
+  <button class="sec" id="build" disabled>🔨 ابني الـ IPA</button>
+  <button class="sec" id="refresh">🔄 عرض ملفات المجلد</button>
+</div>
+</div>
+
+<div class="card">
+<h2>5) الملفات اللي فالمستودع</h2>
+<div id="remote" class="mut">كلّيك «عرض ملفات المجلد»...</div>
+</div>
+
+<div class="card">
+<h2>السجل</h2>
+<div id="log"></div>
+<div id="dl" style="margin-top:10px"></div>
+<div class="hint">آخر الإصدارات: <a href="https://github.com/point2122mh-maker/3105/releases" target="_blank" rel="noopener">github.com/point2122mh-maker/3105/releases</a></div>
+</div>
+</div>
+
+<script>
+const OWNER='point2122mh-maker', REPO='3105', WF='build-3105.yml';
+let CAT='HOLOGRAM', MODE='sync', Q=[];
+const $=id=>document.getElementById(id);
+function log(m,c){const l=$('log');const d=document.createElement('div');if(c)d.className=c;d.textContent='['+new Date().toLocaleTimeString()+'] '+m;l.appendChild(d);l.scrollTop=l.scrollHeight;}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+const enc=p=>p.split('/').map(encodeURIComponent).join('/');
+
+async function api(path,opts){
+  opts=opts||{};
+  const h={'Accept':'application/vnd.github+json'};
+  const t=localStorage.getItem('aim_token');
+  if(t)h['Authorization']='Bearer '+t;
+  if(opts.body!==undefined)h['Content-Type']='application/json';
+  const r=await fetch('https://api.github.com'+path,{method:opts.method||'GET',headers:h,body:opts.body});
+  if(!r.ok){
+    let m='HTTP '+r.status;
+    try{const j=await r.json();if(j.message)m+=' — '+j.message;}catch(e){}
+    if(r.status===403&&/rate limit/i.test(m))m+=' (دخل التوكن باش يزيد الحد)';
+    throw new Error(m);
+  }
+  return r.status===204?null:r.json();
+}
+function b64(buf){
+  const b=new Uint8Array(buf);let s='';const C=0x8000;
+  for(let i=0;i<b.length;i+=C)s+=String.fromCharCode.apply(null,b.subarray(i,i+C));
+  return btoa(s);
+}
+function hint(){
+  $('modeHint').textContent = MODE==='sync'
+    ? 'الملف كيولي فالمستودع aim-sync/'+CAT+' — التطبيق المثبت كيجمّعهم وحده كل ما حلتي التبويبة (أو عاود تشغيل التطبيق). بلا ما تعاود تبني.'
+    : 'الملف كيولي فـ injected/'+CAT+' — من بعد كنطلقو البناء، والـ IPA الجديد كيولي فيه الملفات مدمجة من الداخل.';
+}
+function render(){
+  const t=$('tbl'),b=$('tb');
+  if(!Q.length){t.hidden=true;b.innerHTML='';$('up').disabled=true;$('build').disabled=true;return;}
+  t.hidden=false;b.innerHTML=Q.map((it,i)=>
+    '<tr><td>'+esc(it.name)+'</td><td class="mut">'+(it.size/1024).toFixed(1)+' KB</td><td>'+it.status+'</td>'+
+    '<td><button class="del" data-i="'+i+'">✕</button></td></tr>').join('');
+  b.querySelectorAll('.del').forEach(x=>x.onclick=()=>{Q.splice(+x.dataset.i,1);render();});
+  const busy=Q.some(x=>x.status==='…');
+  $('up').disabled=busy||!Q.length;
+  $('build').disabled=busy||!Q.length||MODE!=='build';
+}
+
+$('tok').value=localStorage.getItem('aim_token')||'';
+$('saveTok').onclick=()=>{const v=$('tok').value.trim();if(!v){localStorage.removeItem('aim_token');$('tokState').textContent='محوّس';$('tokState').className='mut';log('التوكن تمّ حذفو','err');return;}localStorage.setItem('aim_token',v);$('tokState').textContent='محفوظ ✔';$('tokState').className='ok';log('التوكن محفوظ فالمتصفح','ok');};
+$('chkTok').onclick=async()=>{
+  try{const u=await api('/user');$('tokState').textContent='صالح ✔ ('+u.login+')';$('tokState').className='ok';log('التوكن صالح: '+u.login,'ok');}
+  catch(e){$('tokState').textContent='ما صالحش: '+e.message;$('tokState').className='err';log('التوكن: '+e.message,'err');}
+};
+if(localStorage.getItem('aim_token')){api('/user').then(u=>{$('tokState').textContent='صالح ✔ ('+u.login+')';$('tokState').className='ok';}).catch(()=>{$('tokState').textContent='محفوظ لكن تأكد منو';$('tokState').className='err';});}
+
+document.querySelectorAll('#cats .tab').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#cats .tab').forEach(x=>x.classList.remove('on'));b.classList.add('on');
+  CAT=b.dataset.c;listRemote();
+});
+document.querySelectorAll('#modes .tab').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#modes .tab').forEach(x=>x.classList.remove('on'));b.classList.add('on');
+  MODE=b.dataset.m;hint();render();
+});
+hint();
+
+const drop=$('drop');
+drop.onclick=()=>$('file').click();
+$('file').onchange=e=>addFiles(e.target.files);
+['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('hot');}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('hot');}));
+drop.addEventListener('drop',e=>addFiles(e.dataTransfer.files));
+function addFiles(list){
+  for(const f of list){
+    if(f.size>25*1024*1024){log('مرفوض (>25MB): '+f.name,'err');continue;}
+    Q.push({file:f,name:f.name,size:f.size,status:'جاهز'});
+  }
+  render();log('تزاد '+list.length+' ملف(ات) للقائمة');
+}
+
+async function uploadOne(it){
+  const dir=(MODE==='sync'?'aim-sync/':'injected/')+CAT;
+  const path=dir+'/'+it.name;
+  it.status='…';render();
+  let sha=null;
+  try{const e=await api('/repos/'+OWNER+'/'+REPO+'/contents/'+enc(path));if(e&&!Array.isArray(e))sha=e.sha;}catch(e){}
+  const buf=await it.file.arrayBuffer();
+  const body={message:'AIM site: '+path,content:b64(buf)};
+  if(sha)body.sha=sha;
+  await api('/repos/'+OWNER+'/'+REPO+'/contents/'+enc(path),{method:'PUT',body:JSON.stringify(body)});
+  it.status='✅';render();log('✔ '+path,'ok');
+}
+async function uploadAll(){
+  if(!localStorage.getItem('aim_token')){log('دخل التوكن أولاً (الخطوة 1)','err');return false;}
+  for(const it of Q){
+    if(it.status==='✅')continue;
+    try{await uploadOne(it);}
+    catch(e){it.status='❌';render();log('✘ '+it.name+': '+e.message,'err');}
+  }
+  return true;
+}
+$('up').onclick=async()=>{$('up').disabled=true;await uploadAll();listRemote();};
+
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+async function showRel(t0){
+  for(let i=0;i<14;i++){
+    try{
+      const rel=await api('/repos/'+OWNER+'/'+REPO+'/releases/latest');
+      if(rel&&new Date(rel.created_at).getTime()>t0-30000&&rel.assets&&rel.assets.length){
+        $('dl').innerHTML='<div class="ok big">✅ الـ IPA الجديد جاهز:</div><div><a href="'+rel.assets[0].browser_download_url+'" target="_blank" rel="noopener">⬇️ حمّل 3105-unsigned.ipa</a> <span class="mut">('+(rel.assets[0].size/1048576).toFixed(2)+' MB)</span></div>';
+        log('الـ IPA جاهز: '+rel.tag_name,'ok');
+        return;
+      }
+    }catch(e){}
+    await sleep(5000);
+  }
+  log('البناء سالا لكن الإصدار ما بانش دابا — دوز على releases','err');
+}
+$('build').onclick=async()=>{
+  if(!localStorage.getItem('aim_token')){log('دخل التوكن أولاً (الخطوة 1)','err');return;}
+  $('build').disabled=true;
+  const ok=await uploadAll();
+  if(!ok){$('build').disabled=false;return;}
+  const t0=Date.now();
+  try{
+    await api('/repos/'+OWNER+'/'+REPO+'/actions/workflows/'+WF+'/dispatches',{method:'POST',body:JSON.stringify({ref:'main'})});
+    log('🚀 تم إطلاق البناء... (كياخد ~3 دقايق)','ok');
+  }catch(e){log('ما نفعش إطلاق البناء: '+e.message,'err');$('build').disabled=false;return;}
+  for(let i=0;i<40;i++){
+    await sleep(15000);
+    try{
+      const j=await api('/repos/'+OWNER+'/'+REPO+'/actions/workflows/'+WF+'/runs?per_page=5');
+      const run=(j.workflow_runs||[]).find(r=>new Date(r.created_at).getTime()>t0-25000);
+      if(run){
+        log('البناء: '+run.status+(run.conclusion?(' / '+run.conclusion):''));
+        if(run.status==='completed'){
+          if(run.conclusion==='success'){await showRel(t0);}
+          else log('فشل البناء — شوف السجل فـ Actions','err');
+          $('build').disabled=false;listRemote();return;
+        }
+      }
+    }catch(e){log('مراقبة: '+e.message,'err');}
+  }
+  log('سالا المهلة — البناء خدام، دوز على releases باش تشوف النتيجة','err');
+  $('build').disabled=false;
+};
+
+async function listRemote(){
+  const box=$('remote');
+  box.innerHTML='<span class="mut">جاري الجلب...</span>';
+  const dir=(MODE==='sync'?'aim-sync/':'injected/')+CAT;
+  try{
+    const j=await api('/repos/'+OWNER+'/'+REPO+'/contents/'+enc(dir));
+    const files=Array.isArray(j)?j:[];
+    if(!files.length){box.innerHTML='<span class="mut">المجلد خاوي: '+dir+'</span>';return;}
+    box.innerHTML='<table><thead><tr><th>الملف</th><th>الحجم</th><th>SHA</th><th></th></tr></thead><tbody>'+
+      files.map(f=>'<tr><td><a href="'+f.html_url+'" target="_blank" rel="noopener">'+esc(f.name)+'</a></td>'+
+      '<td class="mut">'+(f.size/1024).toFixed(1)+' KB</td>'+
+      '<td class="mut">'+(f.sha||'').slice(0,7)+'</td>'+
+      '<td><button class="del" data-n="'+esc(f.name)+'" data-s="'+f.sha+'">🗑</button></td></tr>').join('')+'</tbody></table>';
+    box.querySelectorAll('button.del').forEach(b=>b.onclick=async()=>{
+      if(!localStorage.getItem('aim_token')){log('التوكن مطلوب للحذف','err');return;}
+      if(!confirm('حذف '+b.dataset.n+' من '+dir+' ?'))return;
+      try{
+        await api('/repos/'+OWNER+'/'+REPO+'/contents/'+enc(dir+'/'+b.dataset.n),{method:'DELETE',body:JSON.stringify({message:'AIM site: delete '+b.dataset.n,sha:b.dataset.s})});
+        log('🗑 تم حذف '+b.dataset.n,'ok');listRemote();
+      }catch(e){log('حذف فاشل: '+e.message,'err');}
+    });
+  }catch(e){box.innerHTML='<span class="err">فشل الجلب: '+esc(e.message)+'</span>';}
+}
+$('refresh').onclick=listRemote;
+
+api('/repos/'+OWNER+'/'+REPO+'/releases/latest').then(r=>{
+  if(r&&r.assets&&r.assets.length){
+    $('dl').innerHTML='<div class="mut">آخر IPA منشور:</div><div><a href="'+r.assets[0].browser_download_url+'" target="_blank" rel="noopener">⬇️ '+esc(r.tag_name)+'</a></div>';
+  }
+}).catch(()=>{});
+listRemote();
+</script>
+</body>
+</html>

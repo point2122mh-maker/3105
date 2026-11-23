@@ -98,7 +98,168 @@ private struct AimCategoryView: View {
 }
 """
 cv.write_text(s)
-print("AIM tabs added; onboarding skipped")
+
+# Give SKIN / HOLOGRAM / MISC real file storage with an Add (+) importer.
+cv = Path("ThreeOneOSFive/ContentView.swift")
+s = cv.read_text()
+old = "import UIKit\n"
+new = "import UIKit\nimport UniformTypeIdentifiers\n"
+assert old in s, "UIKit import not found"
+s = s.replace(old, new, 1)
+idx = s.find("private struct AimCategoryView: View {")
+assert idx >= 0, "placeholder category view not found"
+s = s[:idx]
+s += '''
+private struct AimFileItem: Identifiable, Equatable {
+    let id = UUID()
+    let url: URL
+    var name: String { url.lastPathComponent }
+    var size: Int64 {
+        (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize)
+            .map { Int64($0) } ?? 0
+    }
+}
+
+private final class AimFileStore: ObservableObject {
+    @Published private(set) var files: [AimFileItem] = []
+    let category: String
+
+    init(category: String) {
+        self.category = category
+        reload()
+    }
+
+    private var directory: URL {
+        let docs = FileManager.default.urls(
+            for: .documentDirectory, in: .userDomainMask
+        )[0]
+        return docs
+            .appendingPathComponent("AIM", isDirectory: true)
+            .appendingPathComponent(category, isDirectory: true)
+    }
+
+    func reload() {
+        try? FileManager.default.createDirectory(
+            at: directory, withIntermediateDirectories: true
+        )
+        let contents = (try? FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: [.fileSizeKey],
+            options: [.skipsHiddenFiles]
+        )) ?? []
+        files = contents
+            .map { AimFileItem(url: $0) }
+            .sorted {
+                $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+            }
+    }
+
+    func add(urls: [URL]) {
+        for url in urls {
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+            let destination = directory.appendingPathComponent(url.lastPathComponent)
+            if FileManager.default.fileExists(atPath: destination.path) {
+                try? FileManager.default.removeItem(at: destination)
+            }
+            try? FileManager.default.copyItem(at: url, to: destination)
+        }
+        reload()
+    }
+
+    func delete(_ item: AimFileItem) {
+        try? FileManager.default.removeItem(at: item.url)
+        reload()
+    }
+}
+
+private struct AimCategoryView: View {
+    let title: String
+    @StateObject private var store: AimFileStore
+    @State private var showImporter = false
+
+    init(title: String) {
+        self.title = title
+        _store = StateObject(wrappedValue: AimFileStore(category: title))
+    }
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if store.files.isEmpty {
+                    VStack(spacing: 12) {
+                        Image(systemName: "folder.badge.plus")
+                            .font(.system(size: 36, weight: .light))
+                            .foregroundStyle(AppTheme.accent)
+                        Text("No files in \\(title)")
+                            .font(.headline)
+                        Text("Tap + to add files.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    List {
+                        ForEach(store.files) { item in
+                            HStack(spacing: 12) {
+                                Image(systemName: "doc.fill")
+                                    .foregroundStyle(AppTheme.accent)
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(item.name)
+                                        .font(.subheadline.weight(.semibold))
+                                    Text(formatSize(item.size))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .swipeActions(edge: .trailing) {
+                                Button(role: .destructive) {
+                                    store.delete(item)
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                            }
+                        }
+                    }
+                    .listStyle(.insetGrouped)
+                }
+            }
+            .background(Color(uiColor: .systemGroupedBackground))
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        showImporter = true
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                    .accessibilityLabel("Add file")
+                }
+            }
+            .fileImporter(
+                isPresented: $showImporter,
+                allowedContentTypes: [.item],
+                allowsMultipleSelection: true
+            ) { result in
+                if case .success(let urls) = result {
+                    store.add(urls: urls)
+                }
+            }
+        }
+    }
+
+    private func formatSize(_ bytes: Int64) -> String {
+        if bytes < 1024 { return "\\(bytes) B" }
+        if bytes < 1024 * 1024 {
+            return String(format: "%.1f KB", Double(bytes) / 1024)
+        }
+        return String(format: "%.1f MB", Double(bytes) / (1024 * 1024))
+    }
+}
+'''
+cv.write_text(s)
+print("AIM file categories enabled; onboarding skipped")
 PY
 
 BUILD_ROOT="$SRC/.build"

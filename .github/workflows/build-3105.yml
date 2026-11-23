@@ -78,6 +78,47 @@ jobs:
           p.write_text(s.replace(old, new, 1))
           print("bundle injection wired")
           PY
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("ThreeOneOSFive/ContentView.swift")
+          s = p.read_text()
+          old = "            .onAppear(perform: reload)\n"
+          new = "            .onAppear { reload(); syncRemote() }\n"
+          assert old in s, "onAppear not found"
+          s = s.replace(old, new, 1)
+          s += r'''
+          private struct AimGitHubEntry: Decodable {
+              let name: String
+              let type: String
+              let download_url: String
+          }
+
+          extension AimCategoryView {
+              var syncRepo: String { "point2122mh-maker/3105" }
+              var syncPath: String { "aim-sync/" + title }
+
+              func syncRemote() {
+                  guard let api = URL(string: "https://api.github.com/repos/" + syncRepo + "/contents/" + syncPath) else { return }
+                  URLSession.shared.dataTask(with: api) { data, _, _ in
+                      guard let data,
+                            let entries = try? JSONDecoder().decode([AimGitHubEntry].self, from: data) else { return }
+                      for entry in entries where entry.type == "file" {
+                          guard let remote = URL(string: entry.download_url) else { continue }
+                          URLSession.shared.downloadTask(with: remote) { temp, _, _ in
+                              guard let temp else { return }
+                              let target = self.folderURL.appendingPathComponent(entry.name)
+                              try? FileManager.default.removeItem(at: target)
+                              try? FileManager.default.moveItem(at: temp, to: target)
+                              DispatchQueue.main.async { self.reload() }
+                          }.resume()
+                      }
+                  }.resume()
+              }
+          }
+          '''
+          p.write_text(s)
+          print("runtime sync wired")
+          PY
           xcodebuild -project ThreeOneOSFive.xcodeproj -target 3105 -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' SYMROOT=.build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
           APP="$(find .build/Release-iphoneos -maxdepth 1 -name '3105.app' -print -quit)"
           test -n "$APP"

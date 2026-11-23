@@ -9,6 +9,39 @@ OUT="${2:-3105-unsigned.ipa}"
 command -v xcodebuild >/dev/null 2>&1 || { echo "ERROR: macOS + Xcode (xcodebuild) required." >&2; exit 1; }
 [ -d "$SRC/ThreeOneOSFive.xcodeproj" ] || { echo "ERROR: xcodeproj not found in: $SRC" >&2; exit 1; }
 
+# Hide the Home tab as well: only Installed remains visible.
+python3 - <<'PY'
+from pathlib import Path
+
+ui = Path("ThreeOneOSFive/helpers/AppTabNavigationState.swift")
+s = ui.read_text()
+old = "        case .home, .installed:\n            return true\n"
+new = "        case .installed:\n            return true\n"
+assert old in s, "visible home pattern not found"
+s = s.replace(old, new, 1)
+old = "        case .new, .sources, .search:\n            return false\n"
+new = "        case .home, .new, .sources, .search:\n            return false\n"
+assert old in s, "hidden sections pattern not found"
+s = s.replace(old, new, 1)
+old = "            selectedTab = AppSection.home.rawValue\n"
+new = "            selectedTab = AppSection.installed.rawValue\n"
+assert old in s, "reconcile fallback not found"
+s = s.replace(old, new, 1)
+old = "        selectedTab: Int = 0,\n"
+new = "        selectedTab: Int = AppSection.installed.rawValue,\n"
+assert old in s, "initial tab not found"
+s = s.replace(old, new, 1)
+ui.write_text(s)
+
+cv = Path("ThreeOneOSFive/ContentView.swift")
+s = cv.read_text()
+old = "        } ?? .home\n"
+new = "        } ?? .installed\n"
+assert old in s, "detail fallback not found"
+cv.write_text(s.replace(old, new, 1))
+print("home tab hidden")
+PY
+
 BUILD_ROOT="$SRC/.build"
 rm -rf "$BUILD_ROOT"
 

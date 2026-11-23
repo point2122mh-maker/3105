@@ -239,7 +239,120 @@ assert close >= 0, "add menu close not found"
 close += len("                }\n")
 s = s[:start] + "                ToolbarItem(placement: .navigationBarTrailing) {\n                    EmptyView()\n                }\n" + s[close:]
 pv.write_text(s)
-print("Add menu removed; category tabs restored")
+
+# Category tabs read from the app shared Documents folder (Files app), no + button.
+cv = Path("ThreeOneOSFive/ContentView.swift")
+s = cv.read_text()
+idx = s.find("private struct AimCategoryView: View {")
+assert idx >= 0, "category view not found"
+s = s[:idx]
+s += '''
+private struct AimCategoryView: View {
+    let title: String
+    @EnvironmentObject private var patchStore: PatchProjectStore
+    @State private var fileURLs: [URL] = []
+
+    private var folderURL: URL {
+        let docs = FileManager.default.urls(
+            for: .documentDirectory, in: .userDomainMask
+        )[0]
+        return docs.appendingPathComponent(title, isDirectory: true)
+    }
+
+    private var storageKey: String { "aim.category." + title.lowercased() }
+
+    private var categoryIDs: Set<String> {
+        Set(UserDefaults.standard.stringArray(forKey: storageKey) ?? [])
+    }
+
+    private var items: [PatchLibraryItem] {
+        let ids = categoryIDs
+        return patchStore.items.filter { ids.contains($0.id.uuidString) }
+    }
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if fileURLs.isEmpty && items.isEmpty {
+                    VStack(spacing: 12) {
+                        Image(systemName: "folder.badge.plus")
+                            .font(.system(size: 36, weight: .light))
+                            .foregroundStyle(AppTheme.accent)
+                        Text("No files in " + title)
+                            .font(.headline)
+                        Text("Files app > 3105 > " + title + " - drop .3105 files here.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(.horizontal, 24)
+                } else {
+                    List {
+                        if !items.isEmpty {
+                            Section("Patches") {
+                                ForEach(items) { item in
+                                    HStack(spacing: 12) {
+                                        Image(systemName: item.isLocked ? "lock.fill" : "shippingbox.fill")
+                                            .foregroundStyle(AppTheme.accent)
+                                        Text(item.project?.name ?? "Locked patch")
+                                            .font(.subheadline.weight(.semibold))
+                                    }
+                                }
+                            }
+                        }
+                        if !fileURLs.isEmpty {
+                            Section("Files") {
+                                ForEach(fileURLs, id: \.self) { url in
+                                    Button {
+                                        importFile(url)
+                                    } label: {
+                                        HStack(spacing: 12) {
+                                            Image(systemName: "doc.fill")
+                                                .foregroundStyle(AppTheme.accent)
+                                            Text(url.lastPathComponent)
+                                                .font(.subheadline)
+                                                .foregroundStyle(.primary)
+                                        }
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+                    }
+                    .listStyle(.insetGrouped)
+                }
+            }
+            .background(Color(uiColor: .systemGroupedBackground))
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .onAppear(perform: reload)
+        }
+    }
+
+    private func reload() {
+        try? FileManager.default.createDirectory(
+            at: folderURL, withIntermediateDirectories: true
+        )
+        fileURLs = (try? FileManager.default.contentsOfDirectory(
+            at: folderURL,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        )) ?? []
+    }
+
+    private func importFile(_ url: URL) {
+        guard let data = try? Data(contentsOf: url),
+              let summary = try? PatchPackageCodec.inspect(data) else { return }
+        var ids = categoryIDs
+        ids.insert(summary.packageID.uuidString)
+        UserDefaults.standard.set(Array(ids), forKey: storageKey)
+        patchStore.importPackage(at: url)
+    }
+}
+'''
+cv.write_text(s)
+print("Category folders wired to Files app; add buttons removed")
 PY
 
 BUILD_ROOT="$SRC/.build"
